@@ -15,7 +15,7 @@ The project combines multiple NHANES datasets containing participant demographic
 
 ## Analysis Workflow
 The analysis followed a structured workflow:
-1. Import NHANES SAS Transport (.xpt) files into R
+- Import NHANES SAS Transport (.xpt) files into R
 2. Merge multiple datasets
 3. Clean and prepare the data
 4. Recode treatment categories
