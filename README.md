@@ -194,10 +194,6 @@ NHANES-Diabetes-Analysis/
 │
 ├── figures/
 │
-├── docs/
-│   ├── Learning_Reflection.md
-│   └── Project_Summary.md
-│
 └── outputs/
 ```
 
