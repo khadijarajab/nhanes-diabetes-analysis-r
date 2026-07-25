@@ -1,0 +1,365 @@
+---
+title: "Medication Compliance & Treatment Efficacy Across Real-World Diabetes Management Archetypes"
+author: "Khadija.R : Self-Taught R Data Analyst"
+date: "2026-07-09"
+output: 
+  pdf_document:
+    toc: true
+    toc_depth: 2
+    number_sections: true
+header-includes:
+  - \usepackage{fvextra}
+  - \DefineVerbatimEnvironment{Highlighting}{Verbatim}{breaklines,commandchars=\\\{\}}
+---
+```{r wrapping, include=FALSE }
+knitr::opts_chunk$set(tidy.opts = list(width.cutoff = 60), tidy = TRUE)
+```
+
+
+```{r setup, include=FALSE}
+# ==============================================================================
+# R MARKDOWN SETUP & REPRODUCIBLE PACKAGES
+# ==============================================================================
+knitr::opts_chunk$set(
+  echo = TRUE, 
+  warning = FALSE, 
+  message = FALSE, 
+  fig.align = 'center',
+  fig.width = 7,
+  fig.height = 4.5
+)
+
+# Load required packages dynamically
+if(!require(haven)) install.packages("haven")
+if(!require(tidyverse)) install.packages("tidyverse")
+if(!require(rstatix)) install.packages("rstatix")
+if(!require(ggpubr)) install.packages("ggpubr")
+
+library(haven)
+library(dplyr)
+library(ggplot2)
+library(rstatix)
+library(ggpubr)
+```
+
+
+# **Introduction**
+
+## Background
+Diabetes Mellitus stands as a premier global public health challenge, requiring strict clinical monitoring to prevent debilitating microvascular and macrovascular complications. In clinical practice, therapeutic pathways scale adaptively alongside disease progression. The American Diabetes Association (ADA) establishes a Glycohemoglobin (HbA1c) level of under 7.0% as the primary threshold for successful glycemic control. While randomized clinical trials demonstrate the biological efficacy of isolated pharmaceutical compounds, cross-sectional community studies are required to evaluate real-world management success.
+
+## Research Question
+To what extent do real-world diabetes management strategies (behavioral modification vs. oral pharmacotherapy vs. intensive insulin regimens) differ in their clinical efficacy to achieve gold-standard glycemic control targets (HbA1c < 7.0%) within a nationally representative population?
+
+## Objectives
+The explicit objectives of this research framework are:
+1. Establish a fully reproducible open-science pipeline to segment real-world diabetic patients into distinct treatment archetypes.
+2. Formally audit and validate the mathematical assumptions underlying group-comparison models for continuous clinical biomarkers.
+3. Quantify the exact percentage of individuals within each treatment category successfully maintaining their blood sugar in the clinical safe zone.
+
+## Methods
+
+### Dataset Integration Strategy
+To preserve the complex, clinical branch logic of the NHANES questionnaire pathways, an observational data topology framework was designed. Files were integrated using a comprehensive **Outer Join framework (`all = TRUE`)** linking our five raw source modules: `DEMO_L.xpt`, `DIQ_L.xpt`, `GHB_L.xpt`, `GLU_L.xpt`, and `P_BMX.xpt` side-by-side using the universal relational database key (`SEQN`). 
+
+An outer join was intentionally prioritized over an immediate inner join to protect the integrity of structural skip patterns within the questionnaire. Clinically, a missing or blank entry (`NA`) in the insulin exposure column (`DIQ050`) does not equate to systemic data loss; rather, it indicates an intentional questionnaire skip pattern for individuals who are actively managed via oral agents alone. Performing an early inner join would have prematurely purged these valid clinical profiles.
+
+### Inclusion Criteria
+Following the successful compilation of the master dataset, an aggressive complete-case filter was applied down-stream using a piped `dplyr` workflow. Participants were included if they met the following sequential criteria:
+1. Valid presence of primary fasting subsample weights (`WTSAF2YR`), safeguarding the laboratory plasma glucose math.
+2. Self-reported verification of formal doctor-guided diabetes diagnosis (`Self_Diabetes == 1`).
+3. Successful completion of the objective laboratory glycohemoglobin assay (`!is.na(HbA1c_Percent)`).
+
+Through this deliberate sequential filtering, the original, expansive database containing **26,233 observations and 69 variables** was systematically filtered down to a highly dense, verified analytic cohort of **460 observations and 20 variables** entirely ready for clinical testing.
+
+
+## Variables
+The final evaluation structure isolated the following core variables:
+*   **Exposure Categorization:** Treatment Strategy (Diet & Lifestyle Only, Oral Pills Only, or Insulin Users), constructed via self-reported insulin use (`DIQ050.x`) and oral table use (`DIQ070.x`).
+*   **Primary Continuous Outcome:** Glycohemoglobin Percentage (`LBXGH` / `HbA1c_Percent`).
+*   **Secondary Continuous Outcome:** Body Mass Index (`BMXBMI` / `BMI`).
+*   **Demographic Confounders:** Age (`RIDAGEYR`) and Gender (`RIAGENDR`).
+
+## Statistical Methods
+The choice of statistical group-comparison models depends entirely on the underlying distribution of the continuous dependent variable. Prior to final inferential modeling, a full mathematical audit was conducted using Shapiro-Wilk tests for group normality and Levene's tests for homoscedasticity of variance. 
+
+Upon identifying that the clinical data layout strongly violated parametric assumptions, a standard One-Way Analysis of Variance (ANOVA) was mathematically rejected. A rank-based non-parametric **Kruskal-Wallis Test** was selected as the robust path forward. To isolate explicit head-to-head group variations, a post-hoc pairwise **Dunn Test** was applied with Benjamini-Hochberg (`"BH"`) p-value adjustments to protect against Type I inflation errors.
+
+## Data processing pipeline
+```{r data_pipeline, include=TRUE}
+Demo <- read_xpt("C:/Users/ADMIN/Desktop/R Self Taught  Data Analysis/NHANES/DEMO_L.xpt")  # Demographics
+
+Dia <- read_xpt("C:/Users/ADMIN/Desktop/R Self Taught  Data Analysis/NHANES/DIQ_L.xpt")# Diabetes Questionnaire
+
+Glycohemo <- read_xpt("C:/Users/ADMIN/Desktop/R Self Taught  Data Analysis/NHANES/GHB_L.xpt") # Glycohemoglobin (HbA1c) lab
+
+Plasfasgluc <- read_xpt("C:/Users/ADMIN/Desktop/R Self Taught  Data Analysis/NHANES/GLU_L.xpt") # Plasma Fasting Glucose lab
+
+BMX<- read_xpt("C:/Users/ADMIN/Desktop/R Self Taught  Data Analysis/NHANES/P_BMX.xpt")# Body Measures exam
+
+Efficacy_Study_Data <- Demo %>%
+  merge(Dia, by = "SEQN", all = TRUE) %>%
+  merge(Glycohemo, by = "SEQN", all = TRUE) %>%
+  merge(Plasfasgluc, by = "SEQN", all = TRUE) %>%
+  merge(BMX, by = "SEQN", all = TRUE) %>%
+  select(
+    SEQN, RIAGENDR, RIDAGEYR, DMDBORN4, DMDHRMAZ,        
+    SDMVSTRA, SDMVPSU, WTSAF2YR,                         
+    DIQ010, DID040, DIQ160, DIQ050, DIQ070,    
+    LBXGH, LBXGLU, LBDGLUSI,                             
+    BMXWT, BMXBMI                                        
+  ) %>%
+  rename(
+    ID                   = SEQN,
+    Gender               = RIAGENDR,
+    Age                  = RIDAGEYR,
+    Birth_Country        = DMDBORN4,
+    Household_Marital    = DMDHRMAZ,
+    Pseudo_Stratum       = SDMVSTRA,
+    Pseudo_PSU           = SDMVPSU,
+    Fasting_Weight       = WTSAF2YR,
+    Self_Diabetes        = DIQ010,        
+    Age_At_Diagnosis     = DID040,        
+    Self_Prediabetes     = DIQ160,        
+    Takes_Insulin        = DIQ050,        
+    Takes_Diabetes_Pills = DIQ070,        
+    HbA1c_Percent        = LBXGH,
+    Glucose_mg_dL        = LBXGLU,
+    Glucose_mmol_L       = LBDGLUSI,
+    Weight_kg            = BMXWT,
+    BMI                  = BMXBMI
+  ) %>%
+  filter(!is.na(Fasting_Weight)) %>%
+  filter(Self_Diabetes == 1) %>%
+  filter(!is.na(HbA1c_Percent)) %>%
+  mutate(Gender = case_when(
+    Gender == 1 ~ "Male",
+    Gender == 2 ~ "Female",
+    TRUE        ~ NA_character_
+  )) %>%
+  mutate(Treatment_Strategy = case_when(
+    Takes_Insulin == 1 ~ "Insulin Users",
+    Takes_Diabetes_Pills == 1 & (Takes_Insulin == 2 | is.na(Takes_Insulin)) ~ "Oral Pills Only",
+    Takes_Insulin == 2 & Takes_Diabetes_Pills == 2 ~ "Diet & Lifestyle Only",
+    TRUE ~ "Other/Unknown"
+  )) %>%
+  filter(Treatment_Strategy != "Other/Unknown") %>%
+  mutate(Clinical_Control = ifelse(HbA1c_Percent < 7.0, "Controlled (<7percent)", "Uncontrolled (>=7percent)"))
+```
+*The initial dataframe Diabetes_data had 26233 observations and 69 variables, which has been reduced to 460 observations and 20 variables in my final dataframe Efficacy_Study_Data.*
+
+## Descriptive Statistics
+Descriptive profiles were generated utilizing medians and Interquartile Ranges (IQR) to provide complete baseline metrics across the final cohort of 460 eligible participants.
+
+# **Results**
+```{r  descriptive_stats, echo=FALSE}
+
+HbA1c_Descriptive_Table <- Efficacy_Study_Data %>%
+  group_by(Treatment_Strategy) %>%
+  summarise(
+    Total_n      = n(),
+    Median_HbA1c = median(HbA1c_Percent, na.rm = TRUE),
+    IQR_HbA1c    = IQR(HbA1c_Percent, na.rm = TRUE),
+    Mean_BMI     = round(mean(BMI, na.rm = TRUE), 2),
+    Percent_Controlled = round(mean(Clinical_Control == "Controlled (<7percent)") * 100, 1))
+```
+
+
+```{r}
+knitr::kable(HbA1c_Descriptive_Table, 
+             caption = "Baseline Descriptive Profiles by Management Strategy",
+             col.names = c("Treatment Archetype", "Sample Size (n)", "Median HbA1c (%)", "IQR (%)", "Mean BMI (kg/m²)", "Success Rate (% Controlled)"))
+```
+
+The Descriptive table reveals an explicit clinical gradient. Participants managing their condition via **Diet & Lifestyle Only** demonstrated the highest therapeutic stability with a median HbA1c of 6.1% and a very tight IQR of 1.05%. **Oral Pills Only** tracked borderline target thresholds with a median of 6.8%. Conversely, **Insulin Users** demonstrated poor glycemic status with a median HbA1c of 7.8% and a widely distributed IQR of 2.20%.
+
+## **Assumption Checks**
+The parametric assumptions required for a standard One-Way ANOVA were tested using a piped diagnostic architecture via `rstatix`.
+
+```{r shapiro, echo=TRUE}
+#PIPED SHAPIRO-WILK TEST ---
+# Objective mathematical test for normality. 
+# H0: The data is perfectly normally distributed.
+Normality_Audit_Table <- Efficacy_Study_Data %>%
+  group_by(Treatment_Strategy) %>%
+  shapiro_test(HbA1c_Percent)  # Elegant, piped rstatix normality test
+
+print("--- SHAPIRO-WILK NORMALITY TEST SUMMARY ---")
+print(Normality_Audit_Table)
+```
+
+*The Shapiro-Wilk tests formally rejected the null hypothesis of normal distribution across all three treatment groups (all p-values < 0.001), indicating heavy positive skewness.*
+
+# **Formal Piped Levene's Test for Equal Variances**
+## Checks if the spread/variance is equal across your three groups. 
+## H0: Group variances are completely equal (Homoscedasticity).
+```{r levene, echo=TRUE}
+#PIPED HOMOGENEITY OF VARIANCE (LEVENES TEST) ---
+# Checks if the spread/variance is equal across your three groups. 
+# H0: Group variances are completely equal (Homoscedasticity).
+Variance_Audit_Table <- Efficacy_Study_Data %>%
+  levene_test(HbA1c_Percent ~ Treatment_Strategy) # Elegant, piped rstatix variance test
+
+print("--- LEVENE'S HOMOGENEITY OF VARIANCE SUMMARY ---")
+print(Variance_Audit_Table)
+ 
+```
+*Levene's test formally rejected the null hypothesis of equal variances across groups ($p = 0.00146$), demonstrating prominent heteroscedasticity. Because both parametric metrics failed significantly, the standard ANOVA was rejected.*
+
+## **Figures**
+```{r}
+# Check for visual normality/symmetry for each individual treatment group
+Efficacy_Study_Data %>%
+  ggplot(aes(x = HbA1c_Percent, fill = Treatment_Strategy)) +
+  geom_histogram(
+    binwidth = 0.5, alpha = 0.6, 
+    color = "black", position = "identity") +
+  facet_wrap(~Treatment_Strategy, scales = "free_y") +  
+  labs(
+    title = "Assessing Normality: HbA1c Distribution by Treatment Group",
+    x = "Glycohemoglobin / HbA1c (Percentage)",
+    y = "Frequency / Count"
+  ) +
+  theme_minimal() +
+  theme(
+    legend.position = "none", 
+    plot.title = element_text(face = "bold", size = 14),
+    axis.title = element_text(face = "bold"),
+    axis.text = element_text(size = 11))
+
+```
+
+
+```{r}
+# Check whether the data is skwed using a density plot.
+Efficacy_Study_Data %>%
+  ggplot(aes(x = HbA1c_Percent, fill = Treatment_Strategy)) +
+  geom_density(alpha = 0.6, color = "black") +
+  facet_wrap(~Treatment_Strategy, scales = "free_y") +
+  labs(
+    title = "Assessing Normality: HbA1c Distribution by Treatment Group",
+    x = "Glycohemoglobin / HbA1c (Percentage)",
+    y = "Density"
+  ) +
+  theme_minimal() +
+  theme(
+    legend.position = "none", 
+    plot.title = element_text(face = "bold", size = 14),
+    axis.title = element_text(face = "bold"),
+    axis.text = element_text(size = 11))
+```
+
+```{r}
+#THE REPRODUCIBLE Q-Q PLOT ---
+# Quantile-Quantile plot. If data is normal, points must lie straight on the diagonal line.
+Efficacy_Study_Data %>%
+  ggplot(aes(sample = HbA1c_Percent, color = Treatment_Strategy)) +
+  geom_qq() +
+  geom_qq_line(color = "darkgrey", linewidth = 1) +
+  facet_wrap(~Treatment_Strategy) +
+  labs(
+    title = "Assessing Normality: Q-Q Plots by Treatment Profile",
+    x = "Theoretical Quantiles",
+    y = "Sample Quantiles"
+  ) +
+  theme_minimal() +
+  theme(
+    legend.position = "none", 
+    plot.title = element_text(face = "bold", size = 14),
+    axis.title = element_text(face = "bold"),
+    axis.text = element_text(size = 11))
+```
+
+```{r  boxplot, echo=FALSE, fig.cap="Real-World Glycemic Control and Pairwise Comparisons"}
+
+# 1. Compute bracket coordinates dynamically
+ESD_dunn_results <- Efficacy_Study_Data %>% 
+  dunn_test(HbA1c_Percent ~ Treatment_Strategy, p.adjust.method = "BH")
+
+ESD_dunn_coordinates <- ESD_dunn_results %>% 
+  add_y_position(fun = "max", step.increase = 0.08)
+
+# 2. Render the publication-ready plot
+Efficacy_Study_Data %>%
+  ggplot(aes(x = Treatment_Strategy, y = HbA1c_Percent, fill = Treatment_Strategy)) +
+  geom_boxplot(alpha = 0.7, outlier.shape = 1, outlier.alpha = 0.4) +
+  stat_pvalue_manual(
+    ESD_dunn_coordinates, 
+    label = "p.adj.signif", 
+    tip.length = 0.02, 
+    hide.ns = TRUE
+  ) +
+  geom_hline(yintercept = 7.0, linetype = "dashed", color = "darkred", linewidth = 0.8) +
+  annotate(
+    "text", x = 0.68, y = 7.4, 
+    label = "Clinical Target (7.0%)", 
+    color = "darkred", fontface = "bold", size = 3.5
+  ) +
+  labs(
+    title = "Glycemic Control and Outlier Skews Across Diabetes Strategies",
+    x = "Assigned Treatment Strategy",
+    y = "Glycohemoglobin / HbA1c (Percentage)"
+  ) +
+  scale_fill_brewer(palette = "Pastel1") +
+  theme_minimal() +
+  theme(
+    legend.position = "none", 
+    plot.title = element_text(face = "bold", size = 12)
+  )
+```
+
+
+## **Statistical Tests**
+The inferential results from the piped global non-parametric Kruskal-Wallis model and the pairwise post-hoc tests are printed below.
+
+```{r kw_and_dunn, echo=FALSE}
+# Execute statistical evaluation pipelines
+ESD_kw_results <- Efficacy_Study_Data %>% 
+  kruskal_test(HbA1c_Percent ~ Treatment_Strategy)
+
+# Render tables cleanly in the final report document
+knitr::kable(ESD_kw_results, caption = "Global Kruskal-Wallis Model Summary")
+knitr::kable(ESD_dunn_results, caption = "Pairwise Dunn Post-Hoc Test with Benjamini-Hochberg Correction")
+```
+
+*The global Kruskal-Wallis model formally rejected the null hypothesis of equal distributions ($\chi^2 = 88.7$, df = 2, $p < 0.001$). The pairwise Dunn test established that all three head-to-head treatment matchups achieved complete, highly significant statistical separation (all adjusted p-values < 0.001).*
+
+# **Discussion**
+
+## Interpretation of Findings
+The empirical findings confirm a significant real-world disparity in blood sugar management separating these cohorts. However, rather than evaluating the biological power of the medication molecules themselves, this statistical gap mirrors the clinical progression of Diabetes Mellitus as a disease. 
+
+The Diet & Lifestyle group maintains a low median (6.1%) and high clinical success (76.2%) because it captures patients in the earliest, mildest stages of Type 2 diabetes where pancreatic insulin secretion remains highly intact. Conversely, the Insulin cohort displays elevated glycemic tracking (Median: 7.8%) and severe deficits in target success (only 20.9% controlled).
+
+## Possible Explanations
+Drawing a conclusion that insulin is an ineffective treatment because insulin users have the highest blood sugar represents a severe causal error known as **Confounding by Indication**. In an observational dataset like NHANES, participants are not assigned to treatment randomly. Instead, clinical practitioners non-randomly reserve intensive injectable insulin therapy for patients presenting with advanced pancreatic beta-cell exhaustion, long-standing disease duration, or highly volatile metabolic states. The insulin group box rests highest on our plot because it holds the highest-risk baseline patient profiles.
+
+Furthermore, the doubling of the interquartile range within the insulin cohort (IQR = 2.20%) vs. the diet group (IQR = 1.05%) mathematically demonstrates immense real-world metabolic volatility. Unlike oral tablets, insulin injections impose a severe daily behavioral burden on patients (finger-pricking, carbohydrate counting). Because over-injecting carries the immediate threat of severe hypoglycemia (fainting or death), patients and physicians frequently under-dose insulin, leaving the patient's average HbA1c resting in a "safer" but clinically elevated zone between 7.5% and 8.0%.
+
+## Limitations
+This study contains two primary limitations:
+
+1. **Cross-Sectional Constraints:** Because NHANES collects data at a single snapshot in time, we cannot establish direct temporal causality. We cannot track individual patient HbA1c changes longitudinally as they transition from pills to insulin.
+2. **Self-Report Vulnerabilities:** Categorization relied on questionnaire compliance data (`DIQ050` and `DIQ070`), which is vulnerable to patient recall bias and does not measure exact daily dosage compliance.
+
+# **Conclusion**
+
+This study successfully designed and executed a fully reproducible, pipe-driven research analysis utilizing the NHANES database. The findings demonstrate that parametric testing is fundamentally incompatible with raw clinical biomarker data due to severe skewness, thoroughly justifying the non-parametric framework.
+
+Clinically, a profound implementation gap exists in real-world care: while early lifestyle cohorts achieve high success, the vast majority of advanced pharmacotherapy patients fail to hit the ADA clinical target of < 7.0% HbA1c. This emphasizes that advanced pharmaceuticals cannot resolve diabetes in isolation; clinical systems must pair advanced medications with intensive behavioral, educational, and lifestyle support to safely navigate the daily complexity of hormone titration.
+
+# **References**
+
+American Diabetes Association Professional Practice Committee. (2026). 2. Classification and diagnosis of diabetes: Standards of Care in Diabetes—2026. *Diabetes Care*, *49*(Supplement_1), S13–S40. https://doi.org
+
+Benjamini, Y., & Hochberg, Y. (1995). Controlling the false discovery rate: A practical and powerful approach to multiple testing. *Journal of the Royal Statistical Society: Series B (Methodological)*, *57*(1), 289–300. https://doi.org
+
+Centers for Disease Control and Prevention (CDC). (2024). *National Health and Nutrition Examination Survey (NHANES) Continuous Data Files (2021–2023 Cycle)*. U.S. Department of Health and Human Services, National Center for Health Statistics (NCHS). https://cdc.gov
+
+Dunn, O. J. (1964). Multiple comparisons using rank sums. *Technometrics*, *6*(3), 241–252. https://doi.org
+
+Kruskal, W. H., & Wallis, W. A. (1952). Use of ranks in one-criterion variance analysis. *Journal of the American Statistical Association*, *47*(260), 583–621. https://doi.org
+
+Kassambara, A. (2023). *rstatix: Pipe-friendly framework for basic statistical tests*. R package version 0.7.2. https://r-project.org
+
+Wickham, H., Averick, M., Bryan, J., Chang, W., McGowan, L. D., François, R., Grolemund, G., Hayes, A., Henry, L., Hester, J., Kuhn, M., Pedersen, T. L., Miller, E., Bache, S. M., Müller, K., Ooms, J., Robinson, D., Seidel, D. P., Spinu, V., . . . Yutani, H. (2019). Welcome to the tidyverse. *Journal of Open Source Software*, *4*(43), 1686. https://doi.org
