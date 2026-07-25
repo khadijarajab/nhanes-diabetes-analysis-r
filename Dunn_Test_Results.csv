@@ -1,0 +1,4 @@
+".y.","group1","group2","n1","n2","statistic","p","p.adj","p.adj.signif"
+"HbA1c_Percent","Diet & Lifestyle Only","Insulin Users",63,139,9.07131040188713,1.17594130537258e-19,3.52782391611775e-19,"****"
+"HbA1c_Percent","Diet & Lifestyle Only","Oral Pills Only",63,258,5.05946662021903,4.20430866245169e-07,4.20430866245169e-07,"****"
+"HbA1c_Percent","Insulin Users","Oral Pills Only",139,258,-6.33683034277495,2.34540004350097e-10,3.51810006525145e-10,"****"
