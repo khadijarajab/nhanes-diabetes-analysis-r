@@ -237,8 +237,8 @@ I am passionate about integrating molecular biology, bioinformatics, epidemiolog
 
 **Connect with me:**
 
-- LinkedIn: *(u)*
-- GitHub: *(n)*
+- LinkedIn: *(https://www.linkedin.com/in/khadija-rajab-6466972b3)*
+- GitHub: *(https://github.com/khadijarajab)*
 
 ---
 
