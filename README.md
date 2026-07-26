@@ -89,7 +89,7 @@ This boxplot illustrates the distribution of HbA1c levels across different diabe
 
 ### Normality Assessment
 
-![HbA1c QQPlot](figures/HbA1c_QQPlot.png)
+![Q-Q Plot](figures/HbA1c_QQPlot.png)
 
 A Q-Q plot was used to assess the normality of HbA1c values before statistical testing. The observed deviations from the reference line supported the use of non-parametric methods for group comparisons.
 
