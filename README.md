@@ -77,6 +77,21 @@ The project followed a structured analytical workflow:
 12. Generated a reproducible R Markdown report
 
 ---
+## Key Visualizations
+
+### HbA1c Distribution Across Treatment Groups
+
+![HbA1c Boxplot](figures/HbA1c_Boxplot.png)
+
+This boxplot illustrates the distribution of HbA1c levels across different diabetes management archetypes and provides an initial visual assessment of group differences.
+
+---
+
+### Normality Assessment
+
+![Q-Q Plot](figures/HbA1c_QQPlot.png)
+
+A Q-Q plot was used to assess the normality of HbA1c values before statistical testing. The observed deviations from the reference line supported the use of non-parametric methods for group comparisons.
 
 # Statistical Methods
 
